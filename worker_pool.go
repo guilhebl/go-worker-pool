@@ -1,87 +1,60 @@
-package worker
+package job
 
-import (
-	"log"
-)
-
-// Data a Job receives as Param
-type Payload struct {
-	JobType string
-	Params  map[string]string
-}
-
-func NewPayload(jobType string, params map[string]string) Payload {
-	return Payload{
-		JobType: jobType,
-		Params:  params,
-	}
-}
-
-// Job represents the model to be run
-type Job struct {
-	Payload       Payload
-	ReturnChannel chan interface{}
-}
-
-func NewJob(jobType string, params map[string]string, returnChannel chan interface{}) Job {
-	return Job{
-		Payload:       NewPayload(jobType, params),
-		ReturnChannel: returnChannel,
-	}
-}
-
-type JobRunner interface {
-	Run(payload Payload) (interface{}, error)
-}
-
-// Worker represents the worker that executes the model
-type Worker struct {
-	JobRunner  JobRunner
+// manages a pool of goroutines.
+// it uses a buffered pool of workers in a Job/Worker pattern
+type WorkerPool struct {
+	// A pool of worker channels that are registered with the pool
 	WorkerPool chan chan Job
-	JobChannel chan Job
-	quit       chan bool
+	Workers []Worker
+	maxWorkers int
 }
 
-func NewWorker(workerPool chan chan Job, runner JobRunner) Worker {
-	return Worker{
-		JobRunner:  runner,
-		WorkerPool: workerPool,
-		JobChannel: make(chan Job),
-		quit:       make(chan bool)}
+func NewWorkerPool(maxWorkers int) WorkerPool {
+	pool := make(chan chan Job, maxWorkers)
+	workers := make([]Worker, 0)
+	return WorkerPool{
+		WorkerPool: pool,
+		Workers: workers,
+		maxWorkers: maxWorkers}
 }
 
-// Start method starts the run loop for the worker, listening for a quit channel in
-// case we need to stop it
-func (w Worker) Start() {
-	go func() {
-		for {
-			// register the current worker into the worker queue.
-			w.WorkerPool <- w.JobChannel
+// Starts the WorkerPool
+func (p *WorkerPool) Run(queue chan Job, jobRunner Task) {
+	// starting n number of workers
+	for i := 0; i < p.maxWorkers; i++ {
+		worker := NewWorker(p.WorkerPool, jobRunner)
+		p.Workers = append(p.Workers, worker)
+		worker.Start()
+	}
 
-			select {
-			case job := <-w.JobChannel:
-				// we have received a work request.
-				log.Printf("job req" )
+	go p.dispatch(queue)
+}
 
-				r, err := w.JobRunner.Run(job.Payload)
-				if err != nil {
-					log.Printf("Error running Job: %v", job.Payload)
-					job.ReturnChannel <- err
-				} else {
-					job.ReturnChannel <- r
-				}
+// stops the Pool
+func (p *WorkerPool) Stop() {
+	// stops all workers
+	for _, worker := range p.Workers {
+		worker.Stop()
+	}
 
-			case <-w.quit:
-				// we have received a signal to stop
-				return
-			}
+	// close the Job pool chan
+	close(p.WorkerPool)
+}
+
+// dispatches a job to be handled by an idle Worker of the pool
+func (p *WorkerPool) dispatch(jobQueue chan Job) {
+	for {
+		select {
+		case job := <-jobQueue:
+			// a model request has been received
+			go func(job Job) {
+				// try to obtain a worker model channel that is available.
+				// this will block until a worker is idle
+				jobChannel := <-p.WorkerPool
+
+				// dispatch the model to the worker model channel
+				jobChannel <- job
+			}(job)
 		}
-	}()
-}
-
-// Stop signals the worker to stop listening for work requests.
-func (w Worker) Stop() {
-	go func() {
-		w.quit <- true
-	}()
+	}
 }
