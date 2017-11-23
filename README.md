@@ -11,7 +11,7 @@ Supports merging of multiple job outputs into a single output channel (check sam
 
 1. Implement the task interface:
 
-`
+```
 // Anonymous Sum Task
 type TestSumTask struct{}
 
@@ -27,20 +27,20 @@ func (e *TestSumTask) Run(payload Payload) JobResult {
 func NewTestSumTask() TestSumTask {
 	return TestSumTask{}
 }
-`
+```
 
 2. Create Worker Pool and JobQueue (Worker Pool is created once per app, avoiding the risk of spanning multiple pools)
 
-`
+```
 	// create pool
 	p := NewWorkerPool(4)
 	jobQueue := make(chan Job)
 	p.Run(jobQueue)
-`
+```
 
 3. Create Jobs
 
-`
+```
 	// let's create a test job
 	ret := NewJobResultChannel()
 	m := make(map[string]string)
@@ -51,11 +51,11 @@ func NewTestSumTask() TestSumTask {
 	work := NewJob(&task, m, ret)
 
 	// ... create multiple tasks
-`
+```
 
 4. Push jobs into the queue
 
-`
+```
     // push 1 single job
 	jobQueue <- work
 
@@ -63,24 +63,24 @@ func NewTestSumTask() TestSumTask {
 	jobQueue <- work2
 	jobQueue <- work3
 
-`
+```
 
 5. *Optional If necessary merge multiple job outputs
 
-`
+```
 	// Consume the merged output from all jobs
 	sum := int64(0)
 	for n := range Merge(ret, ret2, ret3, ret4) {
 		result := n.Value
 		sum += result.(int64)
 	}
-`
+```
 
 6. Once application is done using the pool Stop it.
 
-`
+```
 	// try to close pool
 	p.Stop()
-`
+```
 
 #### Any contributions or suggestions are welcome!
