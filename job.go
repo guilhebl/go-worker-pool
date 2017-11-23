@@ -1,14 +1,39 @@
 package job
 
-// Job represents the model to be run
+// Job represents the model to be run, Task is the executing algorithm for this job
+// payload are the params for the job task and ReturnChannel is the channel to return an output
 type Job struct {
+	Task Task
 	Payload       Payload
-	ReturnChannel chan interface{}
+	ReturnChannel chan JobResult
 }
 
-func NewJob(jobType string, params map[string]string, returnChannel chan interface{}) Job {
+// Job represents a return type of a job either the result (Value) or Error
+type JobResult struct {
+	Value interface{}
+	Error error
+}
+
+// Runs the Job Task
+func (j *Job) Run() JobResult {
+	return j.Task.Run(j.Payload)
+}
+
+func NewJob(task Task, params map[string]string, returnChannel chan JobResult) Job {
 	return Job{
-		Payload:       NewPayload(jobType, params),
+		Task: task,
+		Payload:       NewPayload(params),
 		ReturnChannel: returnChannel,
 	}
+}
+
+func NewJobResult(value interface{}, err error) JobResult {
+	return JobResult{
+		Value: value,
+		Error: err,
+	}
+}
+
+func NewJobResultChannel() chan JobResult {
+	return make(chan JobResult)
 }

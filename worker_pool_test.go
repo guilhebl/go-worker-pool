@@ -3,6 +3,7 @@ package job
 import (
 	"testing"
 	"log"
+	"strconv"
 )
 
 func TestCreatePool(t *testing.T) {
@@ -29,35 +30,36 @@ func TestCreatePool(t *testing.T) {
 }
 
 // Anonymous Task
-type TestJob struct{}
+type TestTask struct{}
 
-func (e *TestJob) Run(payload Payload) (interface{}, error) {
-	log.Printf("Run %s", payload.JobType)
-	return "job done!", nil
+func (e *TestTask) Run(payload Payload) JobResult {
+	log.Printf("Task %v", payload.Params)
+	return NewJobResult("job done!", nil)
 }
 
-func NewTestJob() TestJob {
-	return TestJob{}
+func NewTestTask() TestTask {
+	return TestTask{}
 }
 
-func TestRunJobPool(t *testing.T) {
+// tries to run a single worker job pool
+func TestRunSingleJob(t *testing.T) {
 
 	// create pool
-	p := NewWorkerPool(4)
+	p := NewWorkerPool(1)
 	jobQueue := make(chan Job)
-	runner := NewTestJob()
-	p.Run(jobQueue, &runner)
+	p.Run(jobQueue)
 
 	// check running pool num workers created
-	if len(p.Workers) != 4 {
+	if len(p.Workers) != 1 {
 		t.Error("Wrong number of Workers")
 	}
 
 	// let's create a test job
-	ret := make(chan interface{})
-	defer close(ret)
+	ret := NewJobResultChannel()
+	//defer close(ret)
 	m := make(map[string]string)
-	work := NewJob("test", m, ret)
+	task := NewTestTask()
+	work := NewJob(&task, m, ret)
 
 	// Push the job onto the queue.
 	jobQueue <- work
@@ -65,8 +67,94 @@ func TestRunJobPool(t *testing.T) {
 	// wait for response from Job
 	resp := <-ret
 
-	if resp.(string) != "job done!" {
+	if resp.Error != nil || resp.Value.(string) != "job done!" {
 		t.Error("Error while getting result of Job")
+	}
+
+	// try to close pool
+	p.Stop()
+}
+
+// Anonymous Sum Task
+type TestSumTask struct{}
+
+func (e *TestSumTask) Run(payload Payload) JobResult {
+	//log.Printf("Task Sum %v", payload.Params)
+
+	x, _ := strconv.ParseInt(payload.Params["x"], 10, 0)
+	y, _ := strconv.ParseInt(payload.Params["y"], 10, 0)
+
+	return NewJobResult(x + y, nil)
+}
+
+func NewTestSumTask() TestSumTask {
+	return TestSumTask{}
+}
+
+// tries to run multiple jobs
+func TestRunMultipleJob(t *testing.T) {
+
+	// create pool
+	p := NewWorkerPool(4)
+	jobQueue := make(chan Job)
+	p.Run(jobQueue)
+
+	// check running pool num workers created
+	if len(p.Workers) != 4 {
+		t.Error("Wrong number of Workers")
+	}
+
+	// let's create a test job
+	ret := NewJobResultChannel()
+	m := make(map[string]string)
+	x, y := 1, 2
+	m["x"] = strconv.Itoa(x)
+	m["y"] = strconv.Itoa(y)
+	task := NewTestSumTask()
+	work := NewJob(&task, m, ret)
+
+	// let's create a test job 2
+	ret2 := NewJobResultChannel()
+	m2 := make(map[string]string)
+	x2, y2 := 3, 4
+	m2["x"] = strconv.Itoa(x2)
+	m2["y"] = strconv.Itoa(y2)
+	task2 := NewTestSumTask()
+	work2 := NewJob(&task2, m2, ret2)
+
+	// let's create a test job 3
+	ret3 := NewJobResultChannel()
+	m3 := make(map[string]string)
+	x3, y3 := 5, 6
+	m3["x"] = strconv.Itoa(x3)
+	m3["y"] = strconv.Itoa(y3)
+	task3 := NewTestSumTask()
+	work3 := NewJob(&task3, m3, ret3)
+
+	// let's create a test job 4
+	ret4 := NewJobResultChannel()
+	m4 := make(map[string]string)
+	x4, y4 := 5, 6
+	m4["x"] = strconv.Itoa(x4)
+	m4["y"] = strconv.Itoa(y4)
+	task4 := NewTestSumTask()
+	work4 := NewJob(&task4, m4, ret4)
+
+	// Push each job onto the queue.
+	jobQueue <- work
+	jobQueue <- work2
+	jobQueue <- work3
+	jobQueue <- work4
+
+	// Consume the merged output from all jobs
+	sum := int64(0)
+	for n := range Merge(ret, ret2, ret3, ret4) {
+		result := n.Value
+		sum += result.(int64)
+	}
+
+	if sum != 32 {
+		t.Error("error while summing all results from merged Jobs")
 	}
 
 	// try to close pool

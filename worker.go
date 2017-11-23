@@ -1,18 +1,14 @@
 package job
 
-import "log"
-
 // Worker represents the worker that executes the model
 type Worker struct {
-	JobRunner  Task
 	WorkerPool chan chan Job
 	JobChannel chan Job
 	quit       chan bool
 }
 
-func NewWorker(workerPool chan chan Job, runner Task) Worker {
+func NewWorker(workerPool chan chan Job) Worker {
 	return Worker{
-		JobRunner:  runner,
 		WorkerPool: workerPool,
 		JobChannel: make(chan Job),
 		quit:       make(chan bool)}
@@ -29,13 +25,11 @@ func (w Worker) Start() {
 			select {
 			case job := <-w.JobChannel:
 				// we have received a work request.
-				r, err := w.JobRunner.Run(job.Payload)
-				if err != nil {
-					log.Printf("Error running Job: %v", job.Payload)
-					job.ReturnChannel <- err
-				} else {
-					job.ReturnChannel <- r
-				}
+				result := job.Run()
+				job.ReturnChannel <- result
+
+				// once result is returned close the job output channel
+				close(job.ReturnChannel)
 
 			case <-w.quit:
 				// we have received a signal to stop
