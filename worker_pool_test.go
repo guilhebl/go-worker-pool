@@ -2,10 +2,43 @@ package job
 
 import (
 	"testing"
-	"log"
 	"strconv"
 )
 
+// Anonymous Task
+type TestTask struct{}
+
+func (e *TestTask) Run(payload Payload) JobResult {
+	return NewJobResult("job done!", nil)
+}
+
+func NewTestTask() TestTask {
+	return TestTask{}
+}
+
+// Anonymous Sum Task
+type TestSumTask struct{}
+
+func (e *TestSumTask) Run(payload Payload) JobResult {
+	x, _ := strconv.ParseInt(payload.Params["x"], 10, 0)
+	y, _ := strconv.ParseInt(payload.Params["y"], 10, 0)
+	return NewJobResult(x + y, nil)
+}
+
+func NewTestSumTask() TestSumTask {
+	return TestSumTask{}
+}
+
+func testClosePool(t *testing.T, p *WorkerPool)  {
+	// try to close pool
+	ok := p.Stop()
+
+	if ok {
+		t.Error("WorkerPool not closed")
+	}
+}
+
+// just creates a pool but doesn't run it tests open and close
 func TestCreatePool(t *testing.T) {
 
 	p := NewWorkerPool(4)
@@ -26,19 +59,7 @@ func TestCreatePool(t *testing.T) {
 		t.Error("Error while creating Pool")
 	}
 
-	p.Stop()
-}
-
-// Anonymous Task
-type TestTask struct{}
-
-func (e *TestTask) Run(payload Payload) JobResult {
-	log.Printf("Task %v", payload.Params)
-	return NewJobResult("job done!", nil)
-}
-
-func NewTestTask() TestTask {
-	return TestTask{}
+	testClosePool(t, &p)
 }
 
 // tries to run a single worker job pool
@@ -72,23 +93,7 @@ func TestRunSingleJob(t *testing.T) {
 	}
 
 	// try to close pool
-	p.Stop()
-}
-
-// Anonymous Sum Task
-type TestSumTask struct{}
-
-func (e *TestSumTask) Run(payload Payload) JobResult {
-	//log.Printf("Task Sum %v", payload.Params)
-
-	x, _ := strconv.ParseInt(payload.Params["x"], 10, 0)
-	y, _ := strconv.ParseInt(payload.Params["y"], 10, 0)
-
-	return NewJobResult(x + y, nil)
-}
-
-func NewTestSumTask() TestSumTask {
-	return TestSumTask{}
+	testClosePool(t, &p)
 }
 
 // tries to run multiple jobs
@@ -146,7 +151,7 @@ func TestRunMultipleJob(t *testing.T) {
 	jobQueue <- work3
 	jobQueue <- work4
 
-	// Consume the merged output from all jobs
+	// Consume the merged output from all jobs and check matching sum result
 	sum := int64(0)
 	for n := range Merge(ret, ret2, ret3, ret4) {
 		result := n.Value
@@ -158,5 +163,5 @@ func TestRunMultipleJob(t *testing.T) {
 	}
 
 	// try to close pool
-	p.Stop()
+	testClosePool(t, &p)
 }

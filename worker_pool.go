@@ -1,6 +1,8 @@
 package job
 
-import "sync"
+import (
+	"sync"
+)
 
 // manages a pool of goroutines.
 // it uses a buffered pool of workers in a Job/Worker pattern
@@ -9,6 +11,7 @@ type WorkerPool struct {
 	WorkerPool chan chan Job
 	Workers []Worker
 	maxWorkers int
+	waitGroup sync.WaitGroup
 }
 
 func NewWorkerPool(maxWorkers int) WorkerPool {
@@ -17,30 +20,39 @@ func NewWorkerPool(maxWorkers int) WorkerPool {
 	return WorkerPool{
 		WorkerPool: pool,
 		Workers: workers,
-		maxWorkers: maxWorkers}
+		maxWorkers: maxWorkers,
+		waitGroup: sync.WaitGroup{}}
 }
 
 // Starts the WorkerPool
 func (p *WorkerPool) Run(queue chan Job) {
+	w := p.waitGroup
+
 	// starting n number of workers
 	for i := 0; i < p.maxWorkers; i++ {
 		worker := NewWorker(p.WorkerPool)
 		p.Workers = append(p.Workers, worker)
-		worker.Start()
+		w.Add(1)
+		worker.Start(&w)
 	}
 
 	go p.dispatch(queue)
 }
 
 // stops the Pool
-func (p *WorkerPool) Stop() {
+func (p *WorkerPool) Stop() bool {
 	// stops all workers
 	for _, worker := range p.Workers {
 		worker.Stop()
 	}
+	p.waitGroup.Wait() //Wait for the goroutines to shutdown
 
-	// close the Job pool chan
 	close(p.WorkerPool)
+	for x := range p.WorkerPool {
+		_ = x // ignore channel var using blank identifier
+	}
+	ok := p.IsOpen()
+	return ok
 }
 
 // dispatches a job to be handled by an idle Worker of the pool
@@ -59,6 +71,13 @@ func (p *WorkerPool) dispatch(jobQueue chan Job) {
 			}(job)
 		}
 	}
+}
+
+
+// checks if a Worker Pool is open or closed - If we can recieve on the channel then it is NOT closed
+func (p *WorkerPool) IsOpen() bool {
+	_, ok := <-p.WorkerPool
+	return ok
 }
 
 // Utility function to merge multiple JobResult output channels into one

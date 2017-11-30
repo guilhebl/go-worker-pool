@@ -1,6 +1,6 @@
 package job
 
-// Job represents the model to be run, Task is the executing algorithm for this job
+// Job represents the model to run. Task is the executing algorithm for this job
 // payload are the params for the job task and ReturnChannel is the channel to return an output
 type Job struct {
 	Task Task

@@ -1,5 +1,7 @@
 package job
 
+import "sync"
+
 // Worker represents the worker that executes the model
 type Worker struct {
 	WorkerPool chan chan Job
@@ -16,8 +18,9 @@ func NewWorker(workerPool chan chan Job) Worker {
 
 // Start method starts the run loop for the worker, listening for a quit channel in
 // case we need to stop it
-func (w Worker) Start() {
+func (w Worker) Start(wg *sync.WaitGroup) {
 	go func() {
+		defer wg.Done()
 		for {
 			// register the current worker into the worker queue.
 			w.WorkerPool <- w.JobChannel
@@ -32,7 +35,6 @@ func (w Worker) Start() {
 				close(job.ReturnChannel)
 
 			case <-w.quit:
-				// we have received a signal to stop
 				return
 			}
 		}
