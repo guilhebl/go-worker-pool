@@ -1,8 +1,8 @@
 package job
 
 import (
-	"testing"
 	"strconv"
+	"testing"
 )
 
 // Anonymous Task
@@ -22,14 +22,14 @@ type TestSumTask struct{}
 func (e *TestSumTask) Run(payload Payload) JobResult {
 	x, _ := strconv.ParseInt(payload.Params["x"], 10, 0)
 	y, _ := strconv.ParseInt(payload.Params["y"], 10, 0)
-	return NewJobResult(x + y, nil)
+	return NewJobResult(x+y, nil)
 }
 
 func NewTestSumTask() TestSumTask {
 	return TestSumTask{}
 }
 
-func testClosePool(t *testing.T, p *WorkerPool)  {
+func testClosePool(t *testing.T, p *WorkerPool) {
 	// try to close pool
 	ok := p.Stop()
 

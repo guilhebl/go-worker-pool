@@ -3,7 +3,7 @@ package job
 // Job represents the model to run. Task is the executing algorithm for this job
 // payload are the params for the job task and ReturnChannel is the channel to return an output
 type Job struct {
-	Task Task
+	Task          Task
 	Payload       Payload
 	ReturnChannel chan JobResult
 }
@@ -21,7 +21,7 @@ func (j *Job) Run() JobResult {
 
 func NewJob(task Task, params map[string]string, returnChannel chan JobResult) Job {
 	return Job{
-		Task: task,
+		Task:          task,
 		Payload:       NewPayload(params),
 		ReturnChannel: returnChannel,
 	}

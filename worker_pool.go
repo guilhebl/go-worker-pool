@@ -9,9 +9,9 @@ import (
 type WorkerPool struct {
 	// A pool of worker channels that are registered with the pool
 	WorkerPool chan chan Job
-	Workers []Worker
+	Workers    []Worker
 	maxWorkers int
-	waitGroup sync.WaitGroup
+	waitGroup  sync.WaitGroup
 }
 
 func NewWorkerPool(maxWorkers int) WorkerPool {
@@ -19,9 +19,9 @@ func NewWorkerPool(maxWorkers int) WorkerPool {
 	workers := make([]Worker, 0)
 	return WorkerPool{
 		WorkerPool: pool,
-		Workers: workers,
+		Workers:    workers,
 		maxWorkers: maxWorkers,
-		waitGroup: sync.WaitGroup{}}
+		waitGroup:  sync.WaitGroup{}}
 }
 
 // Starts the WorkerPool
@@ -72,7 +72,6 @@ func (p *WorkerPool) dispatch(jobQueue chan Job) {
 		}
 	}
 }
-
 
 // checks if a Worker Pool is open or closed - If we can recieve on the channel then it is NOT closed
 func (p *WorkerPool) IsOpen() bool {

@@ -19,8 +19,8 @@ func NewWorker(workerPool chan chan Job) Worker {
 // Start method starts the run loop for the worker, listening for a quit channel in
 // case we need to stop it
 func (w Worker) Start(wg *sync.WaitGroup) {
+	defer wg.Done()
 	go func() {
-		defer wg.Done()
 		for {
 			// register the current worker into the worker queue.
 			w.WorkerPool <- w.JobChannel
