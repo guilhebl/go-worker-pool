@@ -165,3 +165,55 @@ func TestRunMultipleJob(t *testing.T) {
 	// try to close pool
 	testClosePool(t, &p)
 }
+
+const (
+	workerLimit = 64000
+)
+
+// tries to run massively multiple jobs
+func TestRunMassivelyMultipleJob(t *testing.T) {
+
+	// create pool
+	p := NewWorkerPool(workerLimit)
+	jobQueue := make(chan Job)
+	p.Run(jobQueue)
+
+	// check running pool num workers created
+	if len(p.Workers) != workerLimit {
+		t.Error("Wrong number of Workers")
+	}
+
+	// let's create the test jobs
+
+	var ret [workerLimit]chan JobResult
+
+	for i := 0; i < workerLimit; i++ {
+		ret[i] = NewJobResultChannel()
+		m := make(map[string]string)
+		x, y := 5, 7
+		m["x"] = strconv.Itoa(x)
+		m["y"] = strconv.Itoa(y)
+		task := NewTestSumTask()
+		work := NewJob(&task, m, ret[i])
+		// Push the job onto the queue.
+		jobQueue <- work
+	}
+
+	// Consume the merged output from all jobs and check matching sum result
+	sum := int64(0)
+	var retSlice [workerLimit]<-chan JobResult
+	for i, r := range ret {
+		retSlice[i] = r
+	}
+	for n := range Merge(retSlice[:]...) {
+		result := n.Value
+		sum += result.(int64)
+	}
+
+	if sum != (12 * workerLimit) {
+		t.Error("error while summing all results from merged Jobs")
+	}
+
+	// try to close pool
+	testClosePool(t, &p)
+}
